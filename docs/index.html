@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>deepbook-snippets: runnable reference apps for Sui DeepBook V3 integration patterns</title>
+<meta name="description" content="Runnable, sandbox-tested reference apps for the most common Sui DeepBook V3 integration patterns: swap over a CLOB, the BalanceManager order lifecycle, atomic flash loans, and two-sided market making.">
+<meta property="og:title" content="deepbook-snippets">
+<meta property="og:description" content="Runnable, sandbox-tested reference apps for the Core 4 DeepBook V3 integration patterns. Clone, run against a local sandbox, and crib from them.">
+<meta property="og:type" content="website">
+<style>
+  :root {
+    /* warm paper base, blue-ink text, deep-teal primary; order-book bid/ask as accents */
+    --paper:    oklch(0.985 0.004 95);
+    --surface:  oklch(0.998 0.002 95);
+    --panel:    oklch(0.965 0.006 230);
+    --ink:      oklch(0.24 0.025 248);
+    --ink-soft: oklch(0.34 0.02 248);
+    --muted:    oklch(0.52 0.02 248);
+    --faint:    oklch(0.66 0.015 248);
+    --line:     oklch(0.90 0.008 240);
+    --line-strong: oklch(0.82 0.012 240);
+    --teal:     oklch(0.52 0.10 213);
+    --teal-deep:oklch(0.42 0.09 215);
+    --teal-wash:oklch(0.95 0.025 210);
+    --bid:      oklch(0.58 0.12 155);
+    --ask:      oklch(0.57 0.16 25);
+    --amber:    oklch(0.72 0.13 72);
+    --term-bg:  oklch(0.26 0.03 245);
+    --term-fg:  oklch(0.93 0.01 230);
+    --term-dim: oklch(0.70 0.02 230);
+    --radius: 14px;
+    --maxw: 1080px;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    color: var(--ink);
+    background: var(--paper);
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 clamp(20px, 5vw, 40px); }
+  a { color: var(--teal-deep); text-decoration: none; }
+  a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  code { font-family: var(--mono); font-size: 0.88em; }
+  h1, h2, h3 { letter-spacing: -0.02em; line-height: 1.08; margin: 0; }
+
+  /* ---- header ---- */
+  header.site {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+  }
+  header.site .wrap { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 650; color: var(--ink); letter-spacing: -0.01em; }
+  .brand:hover { text-decoration: none; }
+  .brand .glyph { color: var(--teal); }
+  .nav { display: flex; align-items: center; gap: clamp(14px, 3vw, 28px); font-size: 0.95rem; }
+  .nav a { color: var(--ink-soft); font-weight: 500; }
+  .nav .ext { display: inline-flex; align-items: center; gap: 6px; }
+  @media (max-width: 560px) { .nav a.hide-sm { display: none; } }
+
+  /* ---- hero ---- */
+  .hero .wrap { padding-top: clamp(48px, 8vw, 96px); padding-bottom: clamp(40px, 6vw, 72px); }
+  .hero-grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: clamp(32px, 5vw, 64px); align-items: center; }
+  @media (max-width: 860px) { .hero-grid { grid-template-columns: 1fr; gap: 40px; } }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 0.8rem; font-weight: 600; letter-spacing: 0.02em;
+    color: var(--teal-deep);
+    background: var(--teal-wash); border: 1px solid oklch(0.85 0.04 210);
+    padding: 5px 12px; border-radius: 999px; margin-bottom: 22px;
+  }
+  .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); }
+  h1.hero-title { font-size: clamp(2.4rem, 6.2vw, 4.3rem); font-weight: 720; letter-spacing: -0.035em; }
+  h1.hero-title .accent { color: var(--teal); }
+  .lede { font-size: clamp(1.1rem, 2vw, 1.35rem); color: var(--ink-soft); margin: 22px 0 0; max-width: 36ch; }
+  .lede strong { color: var(--ink); font-weight: 650; }
+  .cta-row { margin-top: 32px; display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-weight: 600; font-size: 0.98rem; padding: 12px 20px; border-radius: 10px;
+    border: 1px solid transparent; cursor: pointer;
+    transition: transform 0.18s cubic-bezier(0.22,1,0.36,1), background 0.18s ease, box-shadow 0.18s ease;
+  }
+  .btn-primary { background: var(--teal); color: oklch(0.99 0.01 210); box-shadow: 0 1px 2px oklch(0.42 0.09 215 / 0.35); }
+  .btn-primary:hover { background: var(--teal-deep); text-decoration: none; transform: translateY(-1px); }
+  .btn-ghost { background: var(--surface); color: var(--ink); border-color: var(--line-strong); }
+  .btn-ghost:hover { background: var(--panel); text-decoration: none; transform: translateY(-1px); }
+  @media (prefers-reduced-motion: reduce) { .btn:hover { transform: none; } }
+
+  /* order-book figure */
+  .book-fig { width: 100%; max-width: 420px; margin: 0 auto; }
+  .book-fig figcaption { font-family: var(--mono); font-size: 0.74rem; color: var(--faint); text-align: center; margin-top: 12px; letter-spacing: 0.01em; }
+  /* SVG styled via real CSS (var() is unreliable inside SVG presentation attributes) */
+  .book-fig svg text { font-family: var(--mono); }
+  .book-fig .frame { fill: var(--surface); stroke: var(--line-strong); }
+  .book-fig .ln { stroke: var(--line); }
+  .book-fig .lbl { fill: var(--faint); }
+  .book-fig .qty { fill: var(--muted); }
+  .book-fig .ask { fill: var(--ask); }
+  .book-fig .bid { fill: var(--bid); }
+  .book-fig .mid { fill: var(--teal-deep); }
+  .book-fig .midbar { fill: var(--teal-wash); }
+  .book-fig .askbar { fill: oklch(0.57 0.16 25 / 0.13); }
+  .book-fig .bidbar { fill: oklch(0.58 0.12 155 / 0.15); }
+
+  /* ---- section scaffold ---- */
+  section { padding: clamp(48px, 7vw, 88px) 0; }
+  .section-head { max-width: 60ch; margin-bottom: clamp(28px, 4vw, 44px); }
+  .kicker { font-family: var(--mono); font-size: 0.78rem; font-weight: 600; color: var(--teal); letter-spacing: 0.04em; text-transform: uppercase; }
+  h2.section-title { font-size: clamp(1.6rem, 3.2vw, 2.3rem); font-weight: 700; margin-top: 12px; }
+  .section-sub { color: var(--muted); margin-top: 12px; font-size: 1.05rem; }
+  .alt { background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+
+  /* ---- how it runs: stepped flow ---- */
+  .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; counter-reset: step; }
+  @media (max-width: 820px) { .flow { grid-template-columns: 1fr 1fr; gap: 28px 24px; } }
+  @media (max-width: 480px) { .flow { grid-template-columns: 1fr; } }
+  .step { position: relative; padding: 0 22px; }
+  .step:first-child { padding-left: 0; }
+  .step:not(:first-child)::before {
+    content: ""; position: absolute; left: 0; top: 16px;
+    width: 1px; height: calc(100% - 16px); background: var(--line);
+  }
+  @media (max-width: 820px) { .step::before { display: none; } .step { padding: 0; } }
+  .step .n {
+    counter-increment: step; font-family: var(--mono); font-size: 0.8rem; font-weight: 700;
+    color: var(--teal); border: 1px solid var(--line-strong); border-radius: 8px;
+    width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+    background: var(--surface); margin-bottom: 16px;
+  }
+  .step .n::before { content: counter(step, decimal-leading-zero); }
+  .step h3 { font-size: 1.05rem; font-weight: 650; margin-bottom: 6px; }
+  .step p { margin: 0; color: var(--muted); font-size: 0.95rem; line-height: 1.55; }
+  .step p code { color: var(--ink-soft); background: var(--panel); padding: 1px 5px; border-radius: 4px; }
+
+  /* ---- snippet cards ---- */
+  .lessons { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 20px; }
+  .lesson {
+    position: relative; display: flex; flex-direction: column;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 24px 24px 22px; overflow: hidden; color: inherit; text-decoration: none;
+    transition: transform 0.2s cubic-bezier(0.22,1,0.36,1), box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .lesson:hover { transform: translateY(-3px); box-shadow: 0 12px 30px oklch(0.42 0.06 240 / 0.10); border-color: var(--line-strong); text-decoration: none; }
+  @media (prefers-reduced-motion: reduce) { .lesson:hover { transform: none; } }
+  .lesson .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .lesson .num { font-family: var(--mono); font-weight: 720; font-size: 2.1rem; letter-spacing: -0.04em; color: var(--ink); line-height: 1; }
+  .lesson .num .pre { font-size: 0.95rem; font-weight: 600; color: var(--faint); letter-spacing: 0; }
+  .lesson .go { color: var(--faint); transition: transform 0.2s cubic-bezier(0.22,1,0.36,1), color 0.2s ease; }
+  .lesson:hover .go { color: var(--teal); transform: translateX(3px); }
+  @media (prefers-reduced-motion: reduce) { .lesson:hover .go { transform: none; } }
+  .lesson h3 { font-size: 1.18rem; font-weight: 660; margin-bottom: 8px; }
+  .lesson .pat { font-family: var(--mono); font-size: 0.72rem; font-weight: 600; color: var(--teal-deep); background: var(--teal-wash); border: 1px solid oklch(0.85 0.04 210); border-radius: 999px; padding: 2px 9px; }
+  .lesson p { margin: 0 0 16px; color: var(--muted); font-size: 0.95rem; line-height: 1.55; }
+  .lesson .call { margin-top: auto; font-family: var(--mono); font-size: 0.78rem; color: var(--ink-soft); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 11px; overflow-x: auto; white-space: nowrap; }
+  .lesson .call .mut { color: var(--faint); }
+
+  /* ---- install / terminal ---- */
+  .install-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: clamp(28px, 4vw, 48px); align-items: start; }
+  @media (max-width: 820px) { .install-grid { grid-template-columns: 1fr; } }
+  .terminal { background: var(--term-bg); border-radius: var(--radius); overflow: hidden; box-shadow: 0 18px 40px oklch(0.26 0.03 245 / 0.22); }
+  .terminal .bar { display: flex; align-items: center; gap: 7px; padding: 12px 16px; border-bottom: 1px solid oklch(0.34 0.02 245); }
+  .terminal .bar .b { width: 11px; height: 11px; border-radius: 50%; background: oklch(0.45 0.02 245); }
+  .terminal .bar .title { margin-left: 10px; font-family: var(--mono); font-size: 0.76rem; color: var(--term-dim); }
+  .terminal pre { margin: 0; padding: 20px; overflow-x: auto; font-family: var(--mono); font-size: 0.86rem; line-height: 1.85; color: var(--term-fg); }
+  .terminal pre .slash { color: oklch(0.78 0.11 200); }
+  .terminal pre .cm { color: var(--term-dim); }
+  .prereq h3 { font-size: 1.05rem; font-weight: 650; margin-bottom: 14px; }
+  .prereq ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 11px; }
+  .prereq li { display: flex; gap: 11px; align-items: baseline; font-size: 0.96rem; color: var(--ink-soft); }
+  .prereq li .chk { color: var(--teal); flex: none; font-weight: 700; }
+  .prereq li code { color: var(--ink); background: var(--panel); padding: 1px 5px; border-radius: 4px; }
+  .prereq .note { margin-top: 18px; font-size: 0.86rem; color: var(--muted); line-height: 1.55; }
+
+  /* ---- footer ---- */
+  footer.site { border-top: 1px solid var(--line); background: var(--surface); padding: 40px 0 56px; }
+  .foot-grid { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 28px; }
+  .foot-links { display: flex; flex-wrap: wrap; gap: 26px; }
+  .foot-col h4 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--faint); margin: 0 0 10px; font-weight: 600; }
+  .foot-col a { display: block; color: var(--ink-soft); font-size: 0.93rem; padding: 3px 0; }
+  .foot-note { color: var(--muted); font-size: 0.85rem; max-width: 30ch; }
+
+  /* ---- load reveal ---- */
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal { opacity: 0; transform: translateY(14px); animation: rise 0.7s cubic-bezier(0.22,1,0.36,1) forwards; }
+    .reveal.d1 { animation-delay: 0.06s; }
+    .reveal.d2 { animation-delay: 0.14s; }
+    .reveal.d3 { animation-delay: 0.22s; }
+    .reveal.d4 { animation-delay: 0.30s; }
+    @keyframes rise { to { opacity: 1; transform: none; } }
+  }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <svg class="glyph" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <rect x="2" y="3" width="16" height="2.4" rx="1.2" fill="currentColor" opacity="0.55"/>
+        <rect x="2" y="8.8" width="11" height="2.4" rx="1.2" fill="currentColor"/>
+        <rect x="2" y="14.6" width="16" height="2.4" rx="1.2" fill="currentColor" opacity="0.55"/>
+      </svg>
+      deepbook-snippets
+    </a>
+    <nav class="nav" aria-label="Primary">
+      <a class="hide-sm" href="#run">How to run</a>
+      <a href="#snippets">Snippets</a>
+      <a href="#quickstart">Quickstart</a>
+      <a class="ext" href="https://github.com/contract-hero/deepbook-snippets">
+        GitHub
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5 3h8v8M13 3 4 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-grid">
+        <div>
+          <span class="eyebrow reveal"><span class="dot"></span>Sui · DeepBook V3 · reference apps</span>
+          <h1 class="hero-title reveal d1">DeepBook is infrastructure,<br><span class="accent">not a product.</span></h1>
+          <p class="lede reveal d2">Four runnable, <strong>sandbox-tested</strong> reference apps for the most common DeepBook V3 integration patterns. You call the matching engine instead of rebuilding it — clone a snippet, run it against a local sandbox, and crib the SDK and Move calls into your own product.</p>
+          <div class="cta-row reveal d3">
+            <a class="btn btn-primary" href="#snippets">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 8h12M9 3l5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Browse the snippets
+            </a>
+            <a class="btn btn-ghost" href="#quickstart">Run them locally</a>
+          </div>
+        </div>
+        <figure class="book-fig reveal d4">
+          <svg viewBox="0 0 360 268" role="img" aria-labelledby="bookTitle" width="100%">
+            <title id="bookTitle">A DeepBook order book: red asks above the mid price, green bids below, with depth bars sized by resting quantity.</title>
+            <rect class="frame" x="0.5" y="0.5" width="359" height="267" rx="13"/>
+            <text class="lbl" x="20" y="26" font-size="11">DEEP / SUI</text>
+            <text class="lbl" x="340" y="26" text-anchor="end" font-size="11">order book</text>
+            <line class="ln" x1="20" y1="36" x2="340" y2="36"/>
+            <g font-size="11">
+              <rect class="askbar" x="120" y="50" width="220" height="14" rx="3"/>
+              <text class="ask" x="20" y="61">0.0241</text><text class="qty" x="124" y="61">1,420</text>
+              <rect class="askbar" x="170" y="70" width="170" height="14" rx="3"/>
+              <text class="ask" x="20" y="81">0.0240</text><text class="qty" x="174" y="81">980</text>
+              <rect class="askbar" x="232" y="90" width="108" height="14" rx="3"/>
+              <text class="ask" x="20" y="101">0.0239</text><text class="qty" x="236" y="101">540</text>
+            </g>
+            <rect class="midbar" x="16" y="116" width="328" height="26" rx="6"/>
+            <text class="mid" x="20" y="133" font-size="12" font-weight="700">mid 0.02385</text>
+            <text class="mid" x="340" y="133" text-anchor="end" font-size="11">spread 0.0001</text>
+            <g font-size="11">
+              <rect class="bidbar" x="234" y="154" width="106" height="14" rx="3"/>
+              <text class="bid" x="20" y="165">0.0238</text><text class="qty" x="238" y="165">610</text>
+              <rect class="bidbar" x="176" y="174" width="164" height="14" rx="3"/>
+              <text class="bid" x="20" y="185">0.0237</text><text class="qty" x="180" y="185">1,050</text>
+              <rect class="bidbar" x="112" y="194" width="228" height="14" rx="3"/>
+              <text class="bid" x="20" y="205">0.0236</text><text class="qty" x="116" y="205">1,530</text>
+            </g>
+            <line class="ln" x1="20" y1="226" x2="340" y2="226"/>
+            <text class="ask" x="20" y="248" font-size="10.5">asks</text>
+            <text class="bid" x="58" y="248" font-size="10.5">bids</text>
+            <text class="lbl" x="100" y="248" font-size="10.5">depth by resting quantity</text>
+          </svg>
+          <figcaption>the primitive you build on, not the one you rebuild</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT RUNS -->
+  <section id="run" class="alt">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="kicker">How to run</span>
+        <h2 class="section-title">Every snippet runs end to end against a live sandbox</h2>
+        <p class="section-sub">No mocks. Each app talks to a local <code>deepbook-sandbox</code> — real pools, a market maker, a faucet — and its test suite drives the actual SDK and Move calls on a local Sui chain.</p>
+      </div>
+      <div class="flow">
+        <div class="step">
+          <span class="n" aria-hidden="true"></span>
+          <h3>Bring up the sandbox</h3>
+          <p>Clone <code>deepbook-sandbox</code> and run <code>pnpm deploy-all</code> on Docker: pools, a market maker, a faucet.</p>
+        </div>
+        <div class="step">
+          <span class="n" aria-hidden="true"></span>
+          <h3>Point at the manifest</h3>
+          <p>Snippets read <code>deployments/localnet.json</code> for addresses; override with <code>DEEPBOOK_SANDBOX_DEPLOYMENTS</code>.</p>
+        </div>
+        <div class="step">
+          <span class="n" aria-hidden="true"></span>
+          <h3>Run the tests</h3>
+          <p><code>pnpm test</code> funds a fresh keypair from the faucet per case and runs the pattern live.</p>
+        </div>
+        <div class="step">
+          <span class="n" aria-hidden="true"></span>
+          <h3>Drive the UI</h3>
+          <p><code>pnpm dev</code> serves a minimal Vite smoke UI (ports 5181–5184) that calls the same core.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SNIPPETS -->
+  <section id="snippets">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="kicker">The Core 4</span>
+        <h2 class="section-title">Four integration patterns, end to end</h2>
+        <p class="section-sub">Each snippet is a small, self-contained mini-app: a headless core, a minimal UI, and a live test suite. Each is a team choosing <em>not</em> to rebuild the matching engine.</p>
+      </div>
+      <div class="lessons">
+
+        <a class="lesson" href="https://github.com/contract-hero/deepbook-snippets/tree/main/01-swap">
+          <div class="top"><span class="num"><span class="pre">Snippet </span>1</span>
+            <svg class="go" width="20" height="20" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div style="margin-bottom:10px"><span class="pat">Pattern A · swap over a CLOB</span></div>
+          <h3>Swap over the CLOB</h3>
+          <p>Swap wallet coins straight over the book with no BalanceManager, guarded by a real <code>minOut</code> that reverts on chain.</p>
+          <div class="call"><span class="mut">deepBook.</span>swapExactQuoteForBase</div>
+        </a>
+
+        <a class="lesson" href="https://github.com/contract-hero/deepbook-snippets/tree/main/02-orders">
+          <div class="top"><span class="num"><span class="pre">Snippet </span>2</span>
+            <svg class="go" width="20" height="20" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div style="margin-bottom:10px"><span class="pat">Pattern B · orders on Spot</span></div>
+          <h3>Place &amp; Manage Orders</h3>
+          <p>Create a BalanceManager, place and cancel limit and market orders, then reconcile settled against owed balances.</p>
+          <div class="call"><span class="mut">deepBook.</span>placeLimitOrder<span class="mut"> · </span>cancelAllOrders</div>
+        </a>
+
+        <a class="lesson" href="https://github.com/contract-hero/deepbook-snippets/tree/main/03-flash-loan">
+          <div class="top"><span class="num"><span class="pre">Snippet </span>3</span>
+            <svg class="go" width="20" height="20" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div style="margin-bottom:10px"><span class="pat">Pattern E · flash loan</span></div>
+          <h3>Flash-Loan Arbitrage</h3>
+          <p>Borrow with a <code>FlashLoan</code> hot potato and repay it in a single PTB through a Move module you publish on chain.</p>
+          <div class="call"><span class="mut">flashLoans.</span>borrowBaseAsset<span class="mut"> + Move</span></div>
+        </a>
+
+        <a class="lesson" href="https://github.com/contract-hero/deepbook-snippets/tree/main/04-market-maker">
+          <div class="top"><span class="num"><span class="pre">Snippet </span>4</span>
+            <svg class="go" width="20" height="20" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div style="margin-bottom:10px"><span class="pat">Pattern F · market making</span></div>
+          <h3>Market-Maker Bot</h3>
+          <p>Quote both sides with a <code>POST_ONLY</code> grid from one BalanceManager, then stake DEEP to earn maker fee rebates.</p>
+          <div class="call"><span class="mut">deepBook.</span>placeLimitOrder<span class="mut"> · </span>governance.stake</div>
+        </a>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- QUICKSTART -->
+  <section id="quickstart" class="alt">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="kicker">Quickstart</span>
+        <h2 class="section-title">Clone, point at the sandbox, run</h2>
+        <p class="section-sub">Bring up the sandbox once, then run any snippet's live tests or its dev UI. The tests are isolated — each funds a fresh ephemeral keypair from the faucet.</p>
+      </div>
+      <div class="install-grid">
+        <div class="terminal" aria-label="Quickstart commands">
+          <div class="bar"><span class="b"></span><span class="b"></span><span class="b"></span><span class="title">bash</span></div>
+<pre><span class="cm"># 1. bring up a local DeepBook sandbox (Docker)</span>
+git clone https://github.com/MystenLabs/deepbook-sandbox
+cd deepbook-sandbox/sandbox && pnpm deploy-all --quick
+
+<span class="cm"># 2. clone the snippets and run one</span>
+git clone https://github.com/contract-hero/deepbook-snippets
+cd deepbook-snippets/01-swap
+pnpm install
+pnpm test     <span class="cm"># live, against the sandbox</span>
+pnpm dev      <span class="cm"># minimal UI on :5181</span></pre>
+        </div>
+        <div class="prereq">
+          <h3>Before you start</h3>
+          <ul>
+            <li><span class="chk">&rsaquo;</span><span>Node.js 18+ and <code>pnpm</code></span></li>
+            <li><span class="chk">&rsaquo;</span><span>Docker running, for the <code>deepbook-sandbox</code></span></li>
+            <li><span class="chk">&rsaquo;</span><span>The Sui CLI on your PATH</span></li>
+            <li><span class="chk">&rsaquo;</span><span><code>03-flash-loan</code> also publishes a Move package — run its <code>contracts/scripts/deploy.sh</code> first</span></li>
+          </ul>
+          <p class="note">If your sandbox lives outside <code>~/workspace/deepbook-sandbox</code>, set <code>DEEPBOOK_SANDBOX_DEPLOYMENTS</code> to its <code>deployments/localnet.json</code>. Each snippet's README has the full run steps.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site">
+  <div class="wrap foot-grid">
+    <div class="foot-note">
+      <span class="brand" style="font-size:0.95rem;">
+        <svg class="glyph" width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2" y="3" width="16" height="2.4" rx="1.2" fill="currentColor" opacity="0.55"/><rect x="2" y="8.8" width="11" height="2.4" rx="1.2" fill="currentColor"/><rect x="2" y="14.6" width="16" height="2.4" rx="1.2" fill="currentColor" opacity="0.55"/></svg>
+        deepbook-snippets
+      </span>
+      <p style="margin:12px 0 0;">Runnable reference apps for Sui DeepBook V3 integration patterns.</p>
+    </div>
+    <div class="foot-links">
+      <div class="foot-col">
+        <h4>Repo</h4>
+        <a href="https://github.com/contract-hero/deepbook-snippets">Repository</a>
+        <a href="#snippets">Snippets</a>
+        <a href="#quickstart">Quickstart</a>
+      </div>
+      <div class="foot-col">
+        <h4>Ecosystem</h4>
+        <a href="https://github.com/contract-hero/acc-deepbook-course">DeepBook course</a>
+        <a href="https://github.com/MystenLabs/deepbook-sandbox">Reference sandbox</a>
+        <a href="https://docs.sui.io/standards/deepbookv3">DeepBook V3 docs</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

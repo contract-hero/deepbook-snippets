@@ -1,0 +1,16 @@
+node_modules/
+dist/
+*.tsbuildinfo
+publish.json
+create_*.json
+*.log
+.env
+.env.*
+
+# Move build artifacts (sui move build/test output)
+contracts/build/
+build/
+
+# Session-journal scratch (not part of this repo)
+.remember/
+.DS_Store
